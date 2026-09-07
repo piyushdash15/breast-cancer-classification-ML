@@ -1,44 +1,44 @@
 # Breast Cancer Classification Using Machine Learning
 
-A machine learning project that classifies breast cancer tumors as **Benign (B)** or **Malignant (M)** using the Breast Cancer Wisconsin Diagnostic dataset and Logistic Regression.
+This project uses machine learning to classify breast cancer tumors as Benign (B) or Malignant (M). It is built using the Breast Cancer Wisconsin Diagnostic dataset and a Logistic Regression model.
 
 > **Disclaimer:** This project is for educational and demonstration purposes only. It is not a medical diagnostic tool and should not be used for clinical decisions.
 
 ## 📌 Project Overview
 
-This project demonstrates an end-to-end machine learning workflow:
+The project covers:
 
-- Data loading and preprocessing
-- Exploratory data analysis
-- Feature selection
-- Train-test splitting
-- Feature scaling using `StandardScaler`
-- Binary classification using Logistic Regression
-- Model evaluation
-- Saving the trained ML pipeline
-- Deploying the model through a Streamlit web application
+-Loading and cleaning the dataset
+-Exploring the data and understanding its features
+-Selecting the required features
+-Splitting the data into training and testing sets
+-Scaling the features using StandardScaler
+-Training a Logistic Regression model
+-Evaluating the model's performance
+-Saving the trained machine learning pipeline
+-Deploying the model through a Streamlit web application
 
 ## 🧠 Machine Learning Model
 
-The project uses **Logistic Regression** for binary classification.
+For the classification task, we used Logistic Regression, a simple and effective algorithm for binary classification.
 
 | Value | Meaning |
 |---|---|
 | `0` | Benign |
 | `1` | Malignant |
 
-The model uses **30 numerical features** derived from measurements such as radius, texture, perimeter, area, smoothness, compactness, concavity, concave points, symmetry, and fractal dimension.
+The model works with **30 numerical features** based on measurements such as radius, texture, perimeter, area, smoothness, compactness, concavity, concave points, symmetry, and fractal dimension.
 
 ## 📊 Dataset
 
-The project uses the **Breast Cancer Wisconsin Diagnostic dataset**.
-
+We use the **Breast Cancer Wisconsin Diagnostic dataset** for our training purposes.
+This Dataset contained -
 - **569 samples**
 - **30 numerical input features**
 - **357 Benign samples**
 - **212 Malignant samples**
 
-The original `id` and empty `Unnamed: 32` columns are removed before training.
+Before training the `id` and empty `Unnamed: 32` columns were removed as they were unnecessary for training.
 
 ## 🔧 Technologies Used
 
@@ -77,14 +77,6 @@ Streamlit Web Application
 ## 📈 Model Performance
 
 The model was evaluated on a test set of **114 samples**.
-
-| Metric | Result |
-|---|---:|
-| Accuracy | 96.49% |
-| Precision (Malignant) | ~97.5% |
-| Recall (Malignant) | ~92.9% |
-| F1 Score (Malignant) | ~95% |
-| ROC-AUC | ~99.60% |
 
 ### Confusion Matrix
 
@@ -171,15 +163,14 @@ Web Application
 
 ## 👨‍💻 Author
 
-**1)Shwetank Vaibhav**
-**2)Piyush Kumar Dash**
-**3)Debashish Kumar Sahoo**
-**4)Ayush Shukla**
-**5)Manvendra**
-**6)Pranshu Gupta**
+1)Shwetank Vaibhav
+2)Piyush Kumar Dash
+3)Debashish Kumar Sahoo
+4)Ayush Shukla
+5)Pranshu Gupta
+6)Manvendra
   
-
-
 ## ⭐ Acknowledgement
+This project was created as a learning project to understand the complete machine learning workflow — from preparing and exploring a dataset to training and evaluating a model, saving the trained pipeline, and deploying it as a web application.
 
-This project was developed as a machine learning learning project to understand the complete workflow from data preprocessing and model training to web application deployment.
+The main focus was to gain practical experience with the different steps involved in building and deploying a machine learning project.
