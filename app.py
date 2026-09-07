@@ -8,6 +8,8 @@ Mode: Streamlined 10-Parameter Input with Automated Background Feature Synthesis
 
 
 import time
+import io
+import re
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -184,23 +186,9 @@ MALIGNANT_PRESET = {
     'fractal_dimension_mean': 0.07871
 }
 
-DATASET_AVERAGE_PRESET = {
-    'radius_mean': 14.127,
-    'texture_mean': 19.290,
-    'perimeter_mean': 91.969,
-    'area_mean': 654.889,
-    'smoothness_mean': 0.09636,
-    'compactness_mean': 0.10434,
-    'concavity_mean': 0.08880,
-    'concave points_mean': 0.04892,
-    'symmetry_mean': 0.18116,
-    'fractal_dimension_mean': 0.06280
-}
-
 PRESETS = {
     "🟢 Benign Sample Preset": BENIGN_PRESET,
-    "🔴 Malignant Sample Preset": MALIGNANT_PRESET,
-    "📊 Dataset Average": DATASET_AVERAGE_PRESET
+    "🔴 Malignant Sample Preset": MALIGNANT_PRESET
 }
 
 # ---------------------------------------------------------
@@ -310,119 +298,125 @@ if pipeline is None:
     st.stop()
 
 # ---------------------------------------------------------
-# Benchmark Presets & Session State Initialization
+# Helper Functions: Data Extraction, Parsing & Rendering
 # ---------------------------------------------------------
-st.markdown("### 1. Benchmark Case Presets")
+def extract_features_from_dataframe(df):
+    """
+    Extracts relevant cytological features from a DataFrame.
+    Automatically trims redundant columns like id, diagnosis, Unnamed: 32.
+    Supports 30 features, standard 32-column format, or 10 mean features.
+    """
+    if df.empty:
+        return None, [], "The uploaded file contains no data rows."
 
-def on_preset_change():
-    """Callback to sync session state with the chosen preset."""
-    selected = st.session_state.selected_preset_choice
-    preset_dict = PRESETS[selected]
-    for key, val in preset_dict.items():
-        st.session_state[f"input_{key}"] = float(val)
+    col_map = {str(c).strip().lower(): c for c in df.columns}
+    matched_features = [col_map[f.lower()] for f in FEATURE_NAMES if f.lower() in col_map]
 
-# Initialize session state with default preset if not present
-if "selected_preset_choice" not in st.session_state:
-    st.session_state.selected_preset_choice = "🟢 Benign Sample Preset"
-    on_preset_change()
+    if len(matched_features) == 30:
+        features_df = df[[col_map[f.lower()] for f in FEATURE_NAMES]].copy()
+        features_df.columns = FEATURE_NAMES
+        trimmed = [str(c) for c in df.columns if c not in matched_features]
+        return features_df.apply(pd.to_numeric, errors='coerce'), trimmed, None
+    elif len(matched_features) == 10 and all(f.lower() in col_map for f in MEAN_FEATURES):
+        features_df = df[[col_map[f.lower()] for f in MEAN_FEATURES]].copy()
+        features_df.columns = MEAN_FEATURES
+        trimmed = [str(c) for c in df.columns if c not in matched_features]
+        return features_df.apply(pd.to_numeric, errors='coerce'), trimmed, None
 
-col_preset, col_info = st.columns([2, 3])
-with col_preset:
-    st.selectbox(
-        "Select Benchmark Profile:",
-        options=list(PRESETS.keys()),
-        key="selected_preset_choice",
-        on_change=on_preset_change,
-        help="Quickly populate the 10 Mean cytological measurements with default test cases."
-    )
-
-with col_info:
-    st.markdown("""
-    <div class="preset-banner">
-        💡 Enter or adjust 10 Mean cytological features below. 
-    </div>
-    """, unsafe_allow_html=True)
-
-# ---------------------------------------------------------
-# Input Features Section (10 Mean Features Only)
-# ---------------------------------------------------------
-st.markdown("""
-<div class="feature-card-header">
-    Mean Cytological Features
-</div>
-""", unsafe_allow_html=True)
-st.caption("Average values computed across all cell nuclei observed in the biopsy fine needle aspirate (FNA).")
-
-user_inputs_mean = {}
-cols_mean = st.columns(3)
-
-for idx, feat in enumerate(MEAN_FEATURES):
-    target_col = cols_mean[idx % 3]
-    default_val = st.session_state.get(f"input_{feat}", float(BENIGN_PRESET[feat]))
-    label = MEAN_LABELS.get(feat, feat)
-
-    # Context-aware step and decimal formatting
-    step_val = 0.01 if default_val >= 1.0 else 0.001
-    fmt = "%.2f" if default_val >= 10.0 else ("%.4f" if default_val >= 1.0 else "%.5f")
-
-    user_inputs_mean[feat] = target_col.number_input(
-        label,
-        value=float(default_val),
-        step=step_val,
-        format=fmt,
-        key=f"input_{feat}"
-    )
-
-st.divider()
-
-# ---------------------------------------------------------
-# Diagnostic Inference Execution
-# ---------------------------------------------------------
-submit_col1, submit_col2, submit_col3 = st.columns([1, 2, 1])
-with submit_col2:
-    predict_clicked = st.button(
-        "🖥️ Run Diagnostic Prediction",
-        type="secondary",
-        use_container_width=True
-    )
-
-# Run prediction when user clicks or on initial page load
-if predict_clicked or "has_run" not in st.session_state:
-    st.session_state.has_run = True
-
-    # 1. Construct 10-feature DataFrame from user inputs
-    input_mean_df = pd.DataFrame(
-        [{feat: float(user_inputs_mean[feat]) for feat in MEAN_FEATURES}],
-        columns=MEAN_FEATURES
-    )
-
-    # 2. Automatically calculate remaining 20 features behind the scenes
-    if feature_synthesizer is not None:
-        predicted_other = feature_synthesizer.predict(input_mean_df)
-        calculated_other_df = pd.DataFrame(predicted_other, columns=AUTO_CALCULATED_FEATURES)
+    num_cols = df.shape[1]
+    if num_cols in [32, 33]:
+        trimmed = [str(df.columns[0]), str(df.columns[1])]
+        if num_cols == 33:
+            trimmed.append(str(df.columns[32]))
+        features_df = df.iloc[:, 2:32].copy()
+        features_df.columns = FEATURE_NAMES
+        return features_df.apply(pd.to_numeric, errors='coerce'), trimmed, None
+    elif num_cols == 30:
+        features_df = df.iloc[:, 0:30].copy()
+        features_df.columns = FEATURE_NAMES
+        return features_df.apply(pd.to_numeric, errors='coerce'), [], None
+    elif num_cols == 10:
+        features_df = df.iloc[:, 0:10].copy()
+        features_df.columns = MEAN_FEATURES
+        return features_df.apply(pd.to_numeric, errors='coerce'), [], None
     else:
-        # Fallback: fill with dataset mean defaults if synthesizer is unavailable
-        calculated_other_df = pd.DataFrame(
-            [[DATASET_AVERAGE_PRESET.get(col, 0.0) for col in AUTO_CALCULATED_FEATURES]],
-            columns=AUTO_CALCULATED_FEATURES
-        )
+        return None, [], f"Expected 30 features (or 32 columns including ID and diagnosis). Found {num_cols} columns."
 
-    # 3. Assemble full 30-feature vector in exact column sequence required by model
-    full_30_df = pd.concat([input_mean_df, calculated_other_df], axis=1)[FEATURE_NAMES]
 
-    # 4. Execute inference and time latency
+def parse_pasted_data(text: str):
+    """
+    Parses pasted patient data separated by commas, tabs, semicolons, or whitespace.
+    Automatically trims redundant columns (such as ID and diagnosis in 32-column format).
+    """
+    text = text.strip()
+    if not text:
+        return None, [], "Pasted text is empty."
+
+    lower_text = text.lower()
+    has_headers = any(h in lower_text for h in ['radius_mean', 'texture_mean'])
+    if has_headers:
+        try:
+            df = pd.read_csv(io.StringIO(text), sep=None, engine='python')
+            res, tr, err = extract_features_from_dataframe(df)
+            if res is not None:
+                return res, tr, None
+        except Exception:
+            pass
+
+    tokens = re.split(r'[\t,;\s]+', text)
+    tokens = [t.strip().strip('"\'') for t in tokens if t.strip().strip('"\'')]
+
+    if not tokens:
+        return None, [], "No valid data tokens found in pasted text."
+
+    num_tokens = len(tokens)
+    trimmed = []
+
+    if num_tokens in [32, 33]:
+        trimmed.append(f"Patient ID: {tokens[0]}")
+        trimmed.append(f"Diagnosis: {tokens[1]}")
+        if num_tokens == 33:
+            trimmed.append(f"Trailing item: {tokens[32]}")
+        raw_vals = tokens[2:32]
+        cols = FEATURE_NAMES
+    elif num_tokens == 31:
+        trimmed.append(f"Metadata item: {tokens[0]}")
+        raw_vals = tokens[1:31]
+        cols = FEATURE_NAMES
+    elif num_tokens == 30:
+        raw_vals = tokens[:30]
+        cols = FEATURE_NAMES
+    elif num_tokens == 10:
+        raw_vals = tokens[:10]
+        cols = MEAN_FEATURES
+    else:
+        return None, [], f"Found {num_tokens} values. Expected 30 features (or 32 items with patient ID and diagnosis, or 10 mean features)."
+
+    try:
+        float_vals = [float(v) for v in raw_vals]
+    except ValueError as e:
+        return None, [], f"Non-numeric value encountered in cytological measurements: {e}"
+
+    features_df = pd.DataFrame([float_vals], columns=cols)
+    return features_df, trimmed, None
+
+
+def render_prediction_results(full_30_df, is_synthesized=False, calculated_other_df=None):
+    """
+    Executes model inference on the 30-feature vector and renders the diagnostic result card,
+    confidence metrics, probability bar, and feature inspection tabs.
+    """
     start_t = time.perf_counter()
     prediction = int(pipeline.predict(full_30_df)[0])
     probabilities = pipeline.predict_proba(full_30_df)[0]
     latency_ms = (time.perf_counter() - start_t) * 1000.0
 
-    # 5. Extract probabilities (Index 0 = Benign [B], Index 1 = Malignant [M])
     benign_prob = float(probabilities[0])
     malignant_prob = float(probabilities[1])
 
     st.markdown("### 2. Diagnostic Inference Results")
 
-    # 6. Display high-contrast custom HTML result card
+    # Display high-contrast custom HTML result card
     if prediction == 0:
         confidence = benign_prob * 100.0
         st.markdown(f"""
@@ -448,7 +442,7 @@ if predict_clicked or "has_run" not in st.session_state:
         </div>
         """, unsafe_allow_html=True)
 
-    # 7. Probability distribution bar & metrics
+    # Probability distribution bar & metrics
     st.markdown("#### Probability Distribution & Risk Index")
     st.progress(
         malignant_prob,
@@ -470,20 +464,278 @@ if predict_clicked or "has_run" not in st.session_state:
         value=f"{latency_ms:.2f} ms"
     )
 
-    # 8. Full Transparency: Behind the Scenes Auto-Calculated Features
-    with st.expander("View 20 Auto-Calculated SE & Worst Features"):
-        st.markdown("""
-        **Streamlit calculates the remaining 20 Standard Error (heterogeneity) and Worst parameters from dataset automatically:
-        """)
-        
-        tab_calc1, tab_calc2 = st.tabs(["Standard Error Features (10)", "Worst (Extreme) Features (10)"])
-        with tab_calc1:
-            st.dataframe(calculated_other_df[SE_FEATURES].style.format("{:.6f}"), use_container_width=True)
-        with tab_calc2:
-            st.dataframe(calculated_other_df[WORST_FEATURES].style.format("{:.4f}"), use_container_width=True)
+    # Feature Transparency Expander
+    if is_synthesized and calculated_other_df is not None:
+        with st.expander("View 20 Auto-Calculated SE & Worst Features"):
+            st.markdown("""
+            **Streamlit calculates the remaining 20 Standard Error (heterogeneity) and Worst parameters from dataset automatically:**
+            """)
+            tab_calc1, tab_calc2 = st.tabs(["Standard Error Features (10)", "Worst (Extreme) Features (10)"])
+            with tab_calc1:
+                st.dataframe(calculated_other_df[SE_FEATURES].style.format("{:.6f}"), use_container_width=True)
+            with tab_calc2:
+                st.dataframe(calculated_other_df[WORST_FEATURES].style.format("{:.4f}"), use_container_width=True)
 
-        st.caption("Complete 30-feature vector passed into `pipeline.predict()`:")
-        st.dataframe(full_30_df.style.format("{:.4f}"), use_container_width=True)
+            st.caption("Complete 30-feature vector passed into `pipeline.predict()`:")
+            st.dataframe(full_30_df.style.format("{:.4f}"), use_container_width=True)
+    else:
+        with st.expander("View Patient Cytological Features (30 Features)"):
+            st.markdown("""
+            **Complete 30-feature cytological vector evaluated by classification engine:**
+            """)
+            tab_f1, tab_f2, tab_f3 = st.tabs(["Mean Features (10)", "Standard Error Features (10)", "Worst Features (10)"])
+            with tab_f1:
+                st.dataframe(full_30_df[MEAN_FEATURES].style.format("{:.4f}"), use_container_width=True)
+            with tab_f2:
+                st.dataframe(full_30_df[SE_FEATURES].style.format("{:.6f}"), use_container_width=True)
+            with tab_f3:
+                st.dataframe(full_30_df[WORST_FEATURES].style.format("{:.4f}"), use_container_width=True)
+
+            st.caption("Complete 30-feature vector passed into `pipeline.predict()`:")
+            st.dataframe(full_30_df.style.format("{:.4f}"), use_container_width=True)
+
+
+# ---------------------------------------------------------
+# Patient Data Input Section
+# ---------------------------------------------------------
+st.markdown("### 1. Patient Data Input")
+
+input_method = st.radio(
+    "Select Input Method:",
+    options=["Manual Entry", "CSV File Upload", "Paste Patient Data"],
+    horizontal=True
+)
+
+if input_method == "Manual Entry":
+    st.markdown("#### Benchmark Case Presets")
+
+    def on_preset_change():
+        """Callback to sync session state with the chosen preset."""
+        selected = st.session_state.selected_preset_choice
+        preset_dict = PRESETS[selected]
+        for key, val in preset_dict.items():
+            st.session_state[f"input_{key}"] = float(val)
+
+    # Initialize session state with default preset if not present
+    if "selected_preset_choice" not in st.session_state:
+        st.session_state.selected_preset_choice = "🟢 Benign Sample Preset"
+        on_preset_change()
+
+    col_preset, col_info = st.columns([2, 3])
+    with col_preset:
+        st.selectbox(
+            "Select Benchmark Profile:",
+            options=list(PRESETS.keys()),
+            key="selected_preset_choice",
+            on_change=on_preset_change,
+            help="Quickly populate the 10 Mean cytological measurements with default test cases."
+        )
+
+    with col_info:
+        st.markdown("""
+        <div class="preset-banner">
+            💡 Enter or adjust 10 Mean cytological features below. 
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Input Features Section (10 Mean Features Only)
+    st.markdown("""
+    <div class="feature-card-header">
+        Mean Cytological Features
+    </div>
+    """, unsafe_allow_html=True)
+    st.caption("Average values computed across all cell nuclei observed in the biopsy fine needle aspirate (FNA).")
+
+    user_inputs_mean = {}
+    cols_mean = st.columns(3)
+
+    for idx, feat in enumerate(MEAN_FEATURES):
+        target_col = cols_mean[idx % 3]
+        default_val = st.session_state.get(f"input_{feat}", float(BENIGN_PRESET[feat]))
+        label = MEAN_LABELS.get(feat, feat)
+
+        # Context-aware step and decimal formatting
+        step_val = 0.01 if default_val >= 1.0 else 0.001
+        fmt = "%.2f" if default_val >= 10.0 else ("%.4f" if default_val >= 1.0 else "%.5f")
+
+        user_inputs_mean[feat] = target_col.number_input(
+            label,
+            value=float(default_val),
+            step=step_val,
+            format=fmt,
+            key=f"input_{feat}"
+        )
+
+    st.divider()
+
+    submit_col1, submit_col2, submit_col3 = st.columns([1, 2, 1])
+    with submit_col2:
+        predict_clicked = st.button(
+            "🖥️ Run Diagnostic Prediction",
+            type="secondary",
+            use_container_width=True
+        )
+
+    # Run prediction when user clicks or on initial page load
+    if predict_clicked or "has_run" not in st.session_state:
+        st.session_state.has_run = True
+
+        input_mean_df = pd.DataFrame(
+            [{feat: float(user_inputs_mean[feat]) for feat in MEAN_FEATURES}],
+            columns=MEAN_FEATURES
+        )
+
+        if feature_synthesizer is not None:
+            predicted_other = feature_synthesizer.predict(input_mean_df)
+            calculated_other_df = pd.DataFrame(predicted_other, columns=AUTO_CALCULATED_FEATURES)
+        else:
+            calculated_other_df = pd.DataFrame(np.zeros((1, 20)), columns=AUTO_CALCULATED_FEATURES)
+
+        full_30_df = pd.concat([input_mean_df, calculated_other_df], axis=1)[FEATURE_NAMES]
+        render_prediction_results(full_30_df, is_synthesized=True, calculated_other_df=calculated_other_df)
+
+elif input_method == "CSV File Upload":
+    st.markdown("""
+    <div class="feature-card-header">
+        CSV File Input
+    </div>
+    """, unsafe_allow_html=True)
+    st.caption("Upload a patient CSV file containing cytological data (supports standard 32-column format). Redundant columns such as patient ID and diagnosis will be automatically trimmed.")
+
+    uploaded_file = st.file_uploader(
+        "Upload patient CSV file",
+        type=["csv"],
+        help="Upload a CSV file containing patient cytological data."
+    )
+
+    if uploaded_file is not None:
+        try:
+            raw_bytes = uploaded_file.getvalue()
+            first_line = raw_bytes.split(b"\n")[0].decode("utf-8", errors="ignore")
+            has_known_headers = any(h in first_line.lower() for h in ["radius_mean", "texture_mean", "id", "diagnosis"])
+
+            df_uploaded = pd.read_csv(io.BytesIO(raw_bytes), header=0 if has_known_headers else None)
+            extracted_df, trimmed_cols, err_msg = extract_features_from_dataframe(df_uploaded)
+
+            if err_msg:
+                st.error(err_msg)
+            else:
+                num_patients = len(extracted_df)
+                selected_patient_idx = 0
+
+                if num_patients > 1:
+                    patient_labels = []
+                    id_col = None
+                    for c in df_uploaded.columns:
+                        if str(c).strip().lower() in ["id", "patient_id", "patient id"]:
+                            id_col = c
+                            break
+                    for i in range(num_patients):
+                        if id_col is not None:
+                            patient_labels.append(f"Record {i + 1} (Patient ID: {df_uploaded[id_col].iloc[i]})")
+                        else:
+                            patient_labels.append(f"Patient Record {i + 1}")
+
+                    selected_patient_idx = st.selectbox(
+                        "Select Patient Record:",
+                        options=list(range(num_patients)),
+                        format_func=lambda i: patient_labels[i]
+                    )
+
+                trimmed_info = ", ".join(trimmed_cols) if trimmed_cols else "None"
+                st.info(f"Loaded patient data successfully. Trimmed redundant columns: {trimmed_info}.")
+
+                patient_features = extracted_df.iloc[[selected_patient_idx]].copy()
+                st.dataframe(patient_features.style.format("{:.4f}"), use_container_width=True)
+
+                st.divider()
+                submit_col1, submit_col2, submit_col3 = st.columns([1, 2, 1])
+                with submit_col2:
+                    run_csv_predict = st.button(
+                        "Run Diagnostic Prediction",
+                        key="btn_csv_predict",
+                        type="secondary",
+                        use_container_width=True
+                    )
+
+                csv_run_key = f"csv_run_{uploaded_file.name}_{selected_patient_idx}"
+                if run_csv_predict:
+                    st.session_state[csv_run_key] = True
+
+                if st.session_state.get(csv_run_key, False):
+                    if len(patient_features.columns) == 30:
+                        full_30_df = patient_features[FEATURE_NAMES]
+                        render_prediction_results(full_30_df, is_synthesized=False)
+                    else:
+                        if feature_synthesizer is not None:
+                            calc_20 = pd.DataFrame(feature_synthesizer.predict(patient_features[MEAN_FEATURES]), columns=AUTO_CALCULATED_FEATURES)
+                        else:
+                            calc_20 = pd.DataFrame(np.zeros((1, 20)), columns=AUTO_CALCULATED_FEATURES)
+                        full_30_df = pd.concat([patient_features[MEAN_FEATURES].reset_index(drop=True), calc_20.reset_index(drop=True)], axis=1)[FEATURE_NAMES]
+                        render_prediction_results(full_30_df, is_synthesized=True, calculated_other_df=calc_20)
+
+        except Exception as e:
+            st.error(f"Error processing CSV file: {str(e)}")
+
+elif input_method == "Paste Patient Data":
+    st.markdown("""
+    <div class="feature-card-header">
+        Paste Patient Data
+    </div>
+    """, unsafe_allow_html=True)
+    st.caption("Paste patient cytological measurements below. Values can be separated by commas, tabs (from Excel/Sheets), spaces, or newlines. Supports standard 32-column format (with patient ID and diagnosis) or 30 cytologic features. Redundant columns are automatically trimmed.")
+
+    pasted_text = st.text_area(
+        "Patient Data Input:",
+        height=140,
+        placeholder="Example:\n842302, M, 17.99, 10.38, 122.8, 1001.0, 0.1184, 0.2776, 0.3001, 0.1471, 0.2419, 0.07871, 1.095, 0.9053, 8.589, 153.4, 0.006399, 0.04904, 0.05373, 0.01587, 0.03003, 0.006193, 25.38, 17.33, 184.6, 2019.0, 0.1622, 0.6656, 0.7119, 0.2654, 0.4601, 0.1189",
+        key="pasted_patient_data"
+    )
+
+    st.divider()
+    submit_col1, submit_col2, submit_col3 = st.columns([1, 2, 1])
+    with submit_col2:
+        run_paste_predict = st.button(
+            "Run Diagnostic Prediction",
+            key="btn_paste_predict",
+            type="secondary",
+            use_container_width=True
+        )
+
+    # Track text change to reset previous run state if new text is typed
+    if st.session_state.get("last_pasted_text") != pasted_text:
+        st.session_state["last_pasted_text"] = pasted_text
+        st.session_state["paste_run"] = False
+
+    if run_paste_predict:
+        if not pasted_text.strip():
+            st.warning("Please paste patient data before running prediction.")
+        else:
+            extracted_df, trimmed_items, err_msg = parse_pasted_data(pasted_text)
+            if err_msg:
+                st.error(err_msg)
+            else:
+                st.session_state["paste_extracted_df"] = extracted_df
+                st.session_state["paste_trimmed_items"] = trimmed_items
+                st.session_state["paste_run"] = True
+
+    if st.session_state.get("paste_run", False) and "paste_extracted_df" in st.session_state:
+        extracted_df = st.session_state["paste_extracted_df"]
+        trimmed_items = st.session_state.get("paste_trimmed_items", [])
+        trimmed_info = ", ".join(trimmed_items) if trimmed_items else "None"
+        st.info(f"Parsed patient data successfully. Trimmed redundant columns: {trimmed_info}.")
+        st.dataframe(extracted_df.style.format("{:.4f}"), use_container_width=True)
+
+        if len(extracted_df.columns) == 30:
+            full_30_df = extracted_df[FEATURE_NAMES]
+            render_prediction_results(full_30_df, is_synthesized=False)
+        else:
+            if feature_synthesizer is not None:
+                calc_20 = pd.DataFrame(feature_synthesizer.predict(extracted_df[MEAN_FEATURES]), columns=AUTO_CALCULATED_FEATURES)
+            else:
+                calc_20 = pd.DataFrame(np.zeros((1, 20)), columns=AUTO_CALCULATED_FEATURES)
+            full_30_df = pd.concat([extracted_df[MEAN_FEATURES].reset_index(drop=True), calc_20.reset_index(drop=True)], axis=1)[FEATURE_NAMES]
+            render_prediction_results(full_30_df, is_synthesized=True, calculated_other_df=calc_20)
 
 # ---------------------------------------------------------
 # Footer
