@@ -97,17 +97,6 @@ Actual M        3      39
 
 These results are based on the project's test split and should not be interpreted as clinical validation.
 
-## 📁 Project Structure
-
-```text
-breast-cancer-ml/
-│
-├── app.py
-├── breast_cancer_model.pkl
-├── requirements.txt
-├── README.md
-└── .gitignore
-```
 
 - `app.py` — Streamlit web application
 - `breast_cancer_model.pkl` — Saved trained ML pipeline
