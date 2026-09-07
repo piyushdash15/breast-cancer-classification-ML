@@ -155,7 +155,7 @@ Deploy
        ↓
 Web Application
 ```
-
+**Link of the app:-** https://breast-cancer-classification-ml-2ksegvgrynw2wevyagn9se.streamlit.app/
 ## 🔮 Future Improvements
 
 - Compare Logistic Regression with Random Forest, SVM, KNN and Gradient Boosting
