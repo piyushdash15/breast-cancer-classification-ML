@@ -171,10 +171,14 @@ Web Application
 
 ## 👨‍💻 Author
 
-**Piyush Kumar Dash**
+**1)Shwetank Vaibhav**
+**2)Piyush Kumar Dash**
+**3)Debashish Kumar Sahoo**
+**4)Ayush Shukla**
+**5)Manvendra**
+**6)Pranshu Gupta**
+  
 
-B.Tech Computer Science Engineering  
-Specialization: Artificial Intelligence & Machine Learning
 
 ## ⭐ Acknowledgement
 
