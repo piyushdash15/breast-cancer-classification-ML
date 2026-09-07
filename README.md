@@ -163,12 +163,12 @@ Web Application
 
 ## 👨‍💻 Author
 
-1)Shwetank Vaibhav
-2)Piyush Kumar Dash
-3)Debashish Kumar Sahoo
-4)Ayush Shukla
-5)Pranshu Gupta
-6)Manvendra
+**1)Shwetank Vaibhav**\
+**2)Piyush Kumar Dash**\
+**3)Debashish Kumar Sahoo**\
+**4)Ayush Shukla**\
+**5)Pranshu Gupta**\
+**6)Manvendra**
   
 ## ⭐ Acknowledgement
 This project was created as a learning project to understand the complete machine learning workflow — from preparing and exploring a dataset to training and evaluating a model, saving the trained pipeline, and deploying it as a web application.
