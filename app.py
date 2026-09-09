@@ -603,7 +603,7 @@ elif input_method == "CSV File Upload":
     st.caption("Upload a patient CSV file containing cytological data (supports standard 32-column format). Redundant columns such as patient ID and diagnosis will be automatically trimmed.")
 
     uploaded_file = st.file_uploader(
-        "Upload patient CSV file",
+        "Upload a single patient's CSV file",
         type=["csv"],
         help="Upload a CSV file containing patient cytological data."
     )
